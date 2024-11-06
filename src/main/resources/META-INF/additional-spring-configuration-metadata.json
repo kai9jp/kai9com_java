@@ -1,0 +1,67 @@
+{"properties": [
+  {
+    "name": "myproperties.CookieMaxAge",
+    "type": "java.lang.String",
+    "description": "A description for 'myproperties.CookieMaxAge'"
+  },
+  {
+    "name": "CookieMaxAge",
+    "type": "java.lang.String",
+    "description": "A description for 'CookieMaxAge'"
+  },
+  {
+    "name": "CookieMaxAge",
+    "type": "java.lang.String",
+    "description": "A description for 'CookieMaxAge'"
+  },
+  {
+    "name": "kai9properties.CookieMaxAge",
+    "type": "java.lang.String",
+    "description": "A description for 'kai9properties.CookieMaxAge'"
+  },
+  {
+    "name": "kai9.jwt",
+    "type": "java.lang.String",
+    "description": "A description for 'kai9.jwt'"
+  },
+  {
+    "name": "jwt.domain",
+    "type": "java.lang.String",
+    "description": "A description for 'jwt.domain'"
+  },
+  {
+    "name": "spring.datasource.primary.url",
+    "type": "java.lang.String",
+    "description": "A description for 'spring.datasource.primary.url'"
+  },
+  {
+    "name": "spring.datasource.primary.password",
+    "type": "java.lang.String",
+    "description": "A description for 'spring.datasource.primary.password'"
+  },
+  {
+    "name": "spring.datasource.primary.maximumPoolSize",
+    "type": "java.lang.String",
+    "description": "A description for 'spring.datasource.primary.maximumPoolSize'"
+  },
+  {
+    "name": "spring.datasource.primary.driverClassName",
+    "type": "java.lang.String",
+    "description": "A description for 'spring.datasource.primary.driverClassName'"
+  },
+  {
+    "name": "spring.datasource.primary.minimumidle",
+    "type": "java.lang.String",
+    "description": "A description for 'spring.datasource.primary.minimumidle'"
+  },
+  {
+    "name": "spring.datasource.primary.username",
+    "type": "java.lang.String",
+    "description": "A description for 'spring.datasource.primary.username'"
+  },
+  {
+    "name": "spring.datasource.primary.driverClassName",
+    "type": "java.lang.String",
+    "description": "A description for 'spring.datasource.primary.driverClassName'"
+  }
+]}
