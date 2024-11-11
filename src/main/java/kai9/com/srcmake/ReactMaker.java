@@ -1259,7 +1259,7 @@ public class ReactMaker {
             replacements.add(new AbstractMap.SimpleEntry<>("related_pk", Relations.src_column));
         }
         content = Kai9ComUtils.replaceContent(content, replacements, startMarker, endMarker, isTargetStrLeave);
-        
+
         startMarker = "【制御:開始】relation⑤";
         endMarker = "【制御:終了】relation⑤";
         replacements = new ArrayList<>();
@@ -1270,7 +1270,7 @@ public class ReactMaker {
             replacements.add(new AbstractMap.SimpleEntry<>("related_pk", Relations.src_column));
         }
         content = Kai9ComUtils.replaceContent(content, replacements, startMarker, endMarker, isTargetStrLeave);
-        
+
         startMarker = "【制御:開始】relation⑥";
         endMarker = "【制御:終了】relation⑥";
         replacements = new ArrayList<>();
@@ -1281,7 +1281,7 @@ public class ReactMaker {
             replacements.add(new AbstractMap.SimpleEntry<>("related_pk", Relations.src_column));
         }
         content = Kai9ComUtils.replaceContent(content, replacements, startMarker, endMarker, isTargetStrLeave);
-        
+
         // 正規表現チェック
         // 雛形コード取り出し
         String startTag = "{/* 【制御:開始】正規表現チェック */}";
@@ -1705,7 +1705,7 @@ public class ReactMaker {
                     tmpStr = tmpStr.replace("maxLength={10}", "maxLength={" + Models.MaxLength + "}");
                     // 日付
                     if (Models.data_type.equals("date")) {
-                        tmpStr = tmpStr.replace("value={formState." + Models.columnname + ".value}", "value={moment(formState.date.value).format('YYYY-MM-DD')}");
+                        tmpStr = tmpStr.replace("value={formState." + Models.columnname + ".value}", "value={moment(formState." + Models.columnname + ".value).format('YYYY-MM-DD')}");
                         tmpStr = tmpStr.replace("type=\"text\"", "type=\"date\"");
                         tmpStr = Kai9ComUtils.removeLinesContainingTag(tmpStr, "maxLength={0}");
                         tmpStr = Kai9ComUtils.removeLinesContainingTag(tmpStr, "minLength={1}");
@@ -1714,7 +1714,7 @@ public class ReactMaker {
                     }
                     // 日時
                     if (Models.data_type.equals("timestamp")) {
-                        tmpStr = tmpStr.replace("value={formState." + Models.columnname + ".value}", "value={moment(formState.datetime.value).format('YYYY-MM-DD HH:mm:ss')}");
+                        tmpStr = tmpStr.replace("value={formState." + Models.columnname + ".value}", "value={moment(formState." + Models.columnname + ".value).format('YYYY-MM-DD HH:mm:ss')}");
                         tmpStr = tmpStr.replace("type=\"text\"", "type=\"datetime-local\"");
                         tmpStr = Kai9ComUtils.removeLinesContainingTag(tmpStr, "maxLength={0}");
                         tmpStr = Kai9ComUtils.removeLinesContainingTag(tmpStr, "minLength={1}");
