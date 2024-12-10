@@ -125,8 +125,9 @@ public class TableImportExcel {
 
             if (isDebug) {
                 // デバック用(新旧レコード比較)
-                Files.write(Paths.get("c:\\temp\\new.txt"), Collections.singleton(""), StandardOpenOption.CREATE);
-                Files.write(Paths.get("c:\\temp\\Exist.txt"), Collections.singleton(""), StandardOpenOption.CREATE);
+                String tempDir = System.getenv("TEMP");
+                Files.write(Paths.get(tempDir, "new.txt"), Collections.singleton(""), StandardOpenOption.CREATE);
+                Files.write(Paths.get(tempDir, "Exist.txt"), Collections.singleton(""), StandardOpenOption.CREATE);
             }
 
             // 実行
@@ -156,7 +157,7 @@ public class TableImportExcel {
      */
     public Integer bulkInsertFromExcel(String excelFilePath, String tableName, String SheetName,StringBuilder relationsSB) throws Exception {
         // 列名と型情報を取得する
-        Map<String, String> columnTypes = getColumnTypes(excelFilePath, SheetName);
+        Map<String, String> columnTypes = getColumnTypes(excelFilePath, SheetName, tableName);
 
         // エクセルからレコード情報を取得する
         List<Map<String, Object>> records = getRecords(excelFilePath, SheetName, columnTypes,relationsSB);
@@ -209,7 +210,8 @@ public class TableImportExcel {
             if (!newHash.equals(oldHash)) {
                 if (isDebug) {
                     // デバック用(新旧レコード比較)
-                    Files.write(Paths.get("c:\\temp\\new.txt"), Collections.singleton(record.toString()), StandardOpenOption.APPEND);
+                    String tempDir = System.getenv("TEMP");
+                    Files.write(Paths.get(tempDir, "new.txt"), Collections.singleton(record.toString()), StandardOpenOption.APPEND);
                 }
                 record.put("hash_value", newHash);
                 if (existingHashes.get().containsKey(primaryKeyValue)) {
@@ -417,7 +419,8 @@ public class TableImportExcel {
             if (isDebug) {
                 // デバック用(新旧レコード比較)
                 try {
-                    Files.write(Paths.get("c:\\temp\\Exist.txt"), Collections.singleton(record.toString()), StandardOpenOption.APPEND);
+                    String tempDir = System.getenv("TEMP");
+                    Files.write(Paths.get(tempDir, "Exist.txt"), Collections.singleton(record.toString()), StandardOpenOption.APPEND);
                 } catch (IOException e) {
                     e.printStackTrace();
                 }
@@ -478,7 +481,7 @@ public class TableImportExcel {
         progressStatus_Service.setCurrentValue2(progressStatusId.get(), 0);
 
         // relationsSBの内容をマップに変換する
-        Map<String, String> relationsMap = Arrays.stream(relationsSB.toString().split("\n"))
+        Map<String, String> relationsMap = Arrays.stream(relationsSB.toString().split(","))
                 .map(line -> line.split("=", 2))
                 .filter(parts -> parts.length == 2)
                 .collect(Collectors.toMap(parts -> parts[0].trim(), parts -> parts[1].trim()));
@@ -657,7 +660,8 @@ public class TableImportExcel {
      * @return 列名と型情報のマップ
      * @throws IOException
      */
-    public Map<String, String> getColumnTypes(String excelFilePath, String SheetName) throws IOException {
+    public Map<String, String> getColumnTypes(String excelFilePath, String SheetName, String tableName) throws IOException {
+        String crlf = System.lineSeparator(); // 改行コード
         Map<String, String> columnTypes = new LinkedHashMap<>();// 列名と型情報を保持するMap
 
         // Excelファイルを読み込む
@@ -765,6 +769,24 @@ public class TableImportExcel {
             // Excelファイルを閉じる
             workbook.close();
         }
+        
+        // DBの列名を取得
+        String sql = "SELECT column_name FROM information_schema.columns WHERE table_name = ?";
+        @SuppressWarnings("deprecation")
+        List<String> dbColumns = jdbcTemplate.queryForList(sql, new Object[] { tableName }, String.class);
+
+        // 過不足チェック
+        List<String> missingColumns = dbColumns.stream().filter(col -> !columnTypes.containsKey(col)).collect(Collectors.toList());
+        List<String> extraColumns = columnTypes.keySet().stream().filter(col -> !dbColumns.contains(col)).collect(Collectors.toList());
+
+        if (!missingColumns.isEmpty() || !extraColumns.isEmpty()) {
+            throw new IllegalArgumentException(
+                    "カラム定義の不一致があります: " + crlf +
+                    (missingColumns.isEmpty() ? "" : "エクセルに不足しているカラム=[" + String.join(", ", missingColumns) + "]") + crlf +
+                    (extraColumns.isEmpty() ? "" : " エクセルに余分なカラム=[" + String.join(", ", extraColumns) + "]") + crlf
+            );
+        }
+        
 
         return columnTypes;
     }
@@ -902,8 +924,17 @@ public class TableImportExcel {
      * @throws NoSuchAlgorithmException
      */
     public static String calculateHash(Map<String, Object> record) throws NoSuchAlgorithmException {
+        // システムカラムを除外する
+        List<String> excludeColumns = Arrays.asList("update_u_id", "update_date");
+        // 除外（存在する場合のみ）
+        Map<String, Object> filteredRecord = record.entrySet().stream()
+            .filter(entry -> entry.getKey() != null && entry.getValue() != null) // nullは無視
+            .filter(entry -> !excludeColumns.contains(entry.getKey()))
+            .collect(Collectors.toMap(Map.Entry::getKey, Map.Entry::getValue));
+        
+        // ハッシュ計算
         MessageDigest digest = MessageDigest.getInstance("SHA-256");
-        String recordString = record.toString();// record.toString() の出力を取得
+        String recordString = filteredRecord.toString();
         byte[] hashBytes = digest.digest(recordString.getBytes(StandardCharsets.UTF_8));
         StringBuilder hexString = new StringBuilder();
         for (byte b : hashBytes) {
@@ -1004,19 +1035,39 @@ public class TableImportExcel {
             }
             break;
         case "short":
-            ps.setShort(index, (Short) value);
+            if (value == null) {
+                ps.setNull(index, Types.SMALLINT);
+            }else {
+                ps.setShort(index, (Short) value);
+            }
             break;
         case "Integer":
-            ps.setInt(index, Integer.valueOf(value.toString()));
+            if (value == null) {
+                ps.setNull(index, Types.INTEGER);
+            }else {
+                ps.setInt(index, Integer.valueOf(value.toString()));
+            }
             break;
         case "long":
-            ps.setLong(index, Long.valueOf(value.toString()));
+            if (value == null) {
+                ps.setNull(index, Types.BIGINT);
+            }else {
+                ps.setLong(index, Long.valueOf(value.toString()));
+            }
             break;
         case "Double":
-            ps.setDouble(index, Double.valueOf(value.toString()));
+            if (value == null) {
+                ps.setNull(index, Types.DOUBLE);
+            }else {
+                ps.setDouble(index, Double.valueOf(value.toString()));
+            }
             break;
         case "float":
-            ps.setFloat(index, (Float) value);
+            if (value == null) {
+                ps.setNull(index, Types.REAL);
+            }else {
+                ps.setFloat(index, (Float) value);
+            }
             break;
         case "java.math.BigDecimal":
             if (value == null) {
@@ -1028,10 +1079,18 @@ public class TableImportExcel {
             }
             break;
         case "String":
-            ps.setString(index, (String) value);
+            if (value == null) {
+                ps.setNull(index, Types.VARCHAR);
+            }else {
+                ps.setString(index, (String) value);
+            }
             break;
         case "byte[]":
-            ps.setBytes(index, (byte[]) value);
+            if (value == null) {
+                ps.setNull(index, Types.BINARY);
+            }else {
+                ps.setBytes(index, (byte[]) value);
+            }
             break;
         // カラムの型がDateの場合
         case "Date":

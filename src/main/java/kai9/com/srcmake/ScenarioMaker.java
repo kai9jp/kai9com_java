@@ -8,6 +8,7 @@ import java.io.FileOutputStream;
 import java.io.IOException;
 import java.io.OutputStreamWriter;
 import java.io.UnsupportedEncodingException;
+import java.math.BigDecimal;
 import java.net.IDN;
 import java.net.URLDecoder;
 import java.nio.charset.StandardCharsets;
@@ -22,12 +23,14 @@ import java.time.LocalDateTime;
 import java.time.ZoneId;
 import java.time.format.DateTimeFormatter;
 import java.util.ArrayList;
+import java.util.Arrays;
 import java.util.Date;
 import java.util.Iterator;
 import java.util.LinkedHashMap;
 import java.util.List;
 import java.util.Locale;
 import java.util.Random;
+import java.util.regex.Pattern;
 
 import org.apache.commons.io.FileUtils;
 import org.apache.commons.io.FilenameUtils;
@@ -59,6 +62,8 @@ import kai9.libs.TimeMeasurement;
 import com.github.javafaker.Faker;
 import com.github.javafaker.service.FakeValuesService;
 import com.github.javafaker.service.RandomService;
+import com.mifmif.common.regex.Generex;
+
 import kai9.com.model.AppEnv;
 import kai9.com.service.AppEnv_Service;
 
@@ -314,6 +319,15 @@ public class ScenarioMaker {
                 findKey_columnname = "";
                 findKeyLevel = 0;
 
+                
+                //計算式が邪魔をしてinsertRow関数がアベンドするので内容を確保し、削除、最後に戻す
+                String dbDelete1="";
+                String dbDelete2="";
+                int tmpRow_dbDelete1 = findControlCharacterRow(sheet, sheetname, "【制御】DB削除1");
+                int tmpRow_dbDelete2 = findControlCharacterRow(sheet, sheetname, "【制御】DB削除2");
+                if (tmpRow_dbDelete1 != -1) dbDelete1 = sheet.getRow(tmpRow_dbDelete1).getCell(col_value2).getCellFormula();
+                if (tmpRow_dbDelete2 != -1) dbDelete2 = sheet.getRow(tmpRow_dbDelete2).getCell(col_value2).getCellFormula();
+                
                 // 【制御】ログイン:PW
                 // パスワード
                 if (sheet_roop_count == 2) { // シート2のPWを3でも揃える
@@ -546,6 +560,7 @@ public class ScenarioMaker {
                     String formula = sheet.getRow(urlRow).getCell(col_value1).getCellFormula();
                     String updatedFormula = formula.replace("single_table", lTable_Name.replaceAll("_a$", ""));
                     sheet.getRow(urlRow).getCell(col_value1).setCellFormula(updatedFormula);
+                    sheet.getRow(urlRow).getCell(col_value2).setCellValue(lTable_Name_J + " 一覧");
                 }
                 TimeMeasurement.logTimeEnd("処理シナリオ作成:「2」「3」シート準備", isDebug);// 時間計測
 
@@ -746,6 +761,13 @@ public class ScenarioMaker {
                             PoiUtil.addStrikethroughToCell(workbook, ws.getRow(tmpRow).getCell(tmpCol - 2));
                         }
                     }
+                    
+                    //戻し
+                    tmpRow_dbDelete1 = findControlCharacterRow(sheet, sheetname, "【制御】DB削除1");
+                    tmpRow_dbDelete2 = findControlCharacterRow(sheet, sheetname, "【制御】DB削除2");
+                    if (tmpRow_dbDelete1 != -1) sheet.getRow(tmpRow_dbDelete1).getCell(col_value2).setCellFormula(dbDelete1);
+                    if (tmpRow_dbDelete2 != -1) sheet.getRow(tmpRow_dbDelete2).getCell(col_value2).setCellFormula(dbDelete2);
+                    
 
                 }
                 TimeMeasurement.logTimeEnd("処理シナリオ作成:「2」シート", isDebug);// 時間計測
@@ -753,6 +775,10 @@ public class ScenarioMaker {
                 // シート「3」
                 TimeMeasurement.logTimeStart("処理シナリオ作成:「3」シート", isDebug);// 時間計測
                 if (sheet_roop_count == 3) {
+                    //計算式が邪魔をしてinsertRow関数がアベンドするので内容を確保し、削除、最後に戻す
+                    if (tmpRow_dbDelete1 != -1) dbDelete1 = sheet.getRow(tmpRow_dbDelete1).getCell(col_value2).getCellFormula(); 
+                    if (tmpRow_dbDelete2 != -1) dbDelete2 = sheet.getRow(tmpRow_dbDelete2).getCell(col_value2).getCellFormula(); 
+                    
                     // カラム単位のテスト明細作成
                     TimeMeasurement.logTimeStart("処理シナリオ作成:「3」シート：カラム単位のテスト明細作成", isDebug);// 時間計測
                     makeTestRow2(sheet, "【制御】新規:入力:必須", isTargetStrLeave);
@@ -763,6 +789,12 @@ public class ScenarioMaker {
                     makeTestRow2(sheet, "【制御】新規:入力:バリデーションOK", isTargetStrLeave);
                     makeTestRow2(sheet, "【制御】新規:入力:バリデーションNG", isTargetStrLeave);
                     TimeMeasurement.logTimeEnd("処理シナリオ作成:「3」シート：カラム単位のテスト明細作成", isDebug);// 時間計測
+                    
+                    //計算式の戻し
+                    tmpRow_dbDelete1 = findControlCharacterRow(sheet, sheetname, "【制御】DB削除1");
+                    tmpRow_dbDelete2 = findControlCharacterRow(sheet, sheetname, "【制御】DB削除2");
+                    if (tmpRow_dbDelete1 != -1) sheet.getRow(tmpRow_dbDelete1).getCell(col_value2).setCellFormula(dbDelete1);
+                    if (tmpRow_dbDelete2 != -1) sheet.getRow(tmpRow_dbDelete2).getCell(col_value2).setCellFormula(dbDelete2);
                 }
 
                 // 全ての計算式を再計算させる
@@ -916,8 +948,10 @@ public class ScenarioMaker {
                 sb.append("\r\n");
 
                 // 追加SQL
-                int sqlRow = PoiUtil.findRow(ws, "LOGINユーザの権限");
-                int sqlCol = PoiUtil.findCol(ws, sqlRow, "LOGINユーザの権限");
+                int sqlRow = Arrays.stream(new String[]{"LOGINユーザの権限", "--LOGINユーザの権限"}) //mapを使い、どちらかでヒットした方を探す
+                        .mapToInt(target -> PoiUtil.findRow(ws, target)).filter(row -> row != -1).findFirst().orElse(-1);
+                int sqlCol = Arrays.stream(new String[]{"LOGINユーザの権限", "--LOGINユーザの権限"}) //mapを使い、どちらかでヒットした方を探す
+                        .mapToInt(target -> PoiUtil.findCol(ws, sqlRow, target)).filter(col -> col != -1).findFirst().orElse(-1);                
                 if (sqlRow != -1 && sqlCol != -1) {
                     lastRow = PoiUtil.getLastRowNumInColumn(ws, sqlCol);
                     for (int r = sqlRow; r <= lastRow; r++) {
@@ -1296,11 +1330,11 @@ public class ScenarioMaker {
                             // return String.valueOf(Long.MIN_VALUE); // -9223372036854775808
                             return "-9007199254740990";
                         case "real":
-                            return String.format("%e", (-Float.MAX_VALUE)); //  -3.4028235E38
+                            return String.format("%e", (-Float.MAX_VALUE)); // -3.4028235E38
                         case "double precision":
                             return String.format("%e", (-Double.MAX_VALUE)); // -1.7976931348623157E308
                         case "numeric":
-                            return String.format("%e", (new java.math.BigDecimal(-Double.MAX_VALUE))); // - 1.7976931348623157E308
+                            return String.format("%e", (new java.math.BigDecimal(-Double.MAX_VALUE))); // -1.7976931348623157E308
                         default:
                             return "unsupported data type"; // サポートされていないデータ型の場合
                         }
@@ -1432,10 +1466,38 @@ public class ScenarioMaker {
                 if (validationCheck.contains("【正規表現】")) {
                     // "正規表現" 部分を削除して正規表現パターンを抽出
                     String regex = validationCheck.replace("【正規表現】", "").trim();
-                    regex = regex.replace("^", "").replace("$", ""); // ^と$を取り除く
+                    // 先頭の ^ を削除
+                    if (regex.startsWith("^")) {
+                        regex = regex.substring(1); // 先頭1文字を除く
+                    }
 
+                    // 末尾の $ を削除
+                    if (regex.endsWith("$")) {
+                        regex = regex.substring(0, regex.length() - 1); // 最後の1文字を除く
+                    }
+                  
                     // 正規表現の場合、最大、最小の文字列生成は仕様上厳しい(正規表現自体に文字数を制御するものがある)ので、そのまま返す
-                    return fakeValuesService.regexify(regex);
+                    
+                    // 日本語文字のみで構成されているか確認するための正規表現パターン
+                    String patternStr = "^[\\p{InHiragana}\\p{InKatakana}\\p{InCJKUnifiedIdeographs}\\u3000-\\u303F]+$";
+                    Pattern regPattern = Pattern.compile(patternStr);
+                    
+                    // 正常な文字列が得られるまで再生成（試行回数に上限を設定）
+                    String result;
+                    int maxAttempts = 100; // 試行回数の上限
+                    int attempts = 0;
+
+                    do {
+                        result = fakeValuesService.regexify(regex);
+                        attempts++;
+                        if (attempts >= maxAttempts) {
+                            throw new IllegalStateException("有効な文字列を生成できませんでした。試行回数が上限に達しました。");
+                        }
+                    } while (!regPattern.matcher(result).matches());
+
+                    return result;
+                    
+//                    return fakeValuesService.regexify(regex);
                 }
 
                 // セレクトボックス
@@ -1526,7 +1588,26 @@ public class ScenarioMaker {
                 if (LengthPattern == ScenarioMaker.LengthPattern.MAX) {
                     if (Models.special_control_max != 0) {
                         // 特殊制御（最小数値
-                        return String.valueOf(Models.special_control_max + 1);// +1
+                        //return String.valueOf(Models.special_control_max + 1);// +1
+                        
+                        //最大値、最小値の小数点以下が指定されている場合、特に気にせず返す
+                        if (Models.special_control_max % 1 != 0) {
+                            return String.valueOf(Models.special_control_max + 1);// -1
+                        }
+
+                        //最大値、最小値の小数点以下が無い場合、ブラウザでは小数点が省略されてしまう
+                        //例) 最大値、又は最小値が2.0や2の場合、ブラウザでは、1.0と入れても1になる
+                        BigDecimal stripped = BigDecimal.valueOf(Models.special_control_max + 1).stripTrailingZeros();
+                        if (stripped.scale() <= 0) {
+                            // 小数点以下がない場合、小数点以下を切り捨てて返す
+                            return stripped.toPlainString();
+                        } else {
+                            // 小数点以下に値がある場合、そのまま返す
+                            return stripped.toPlainString();
+                        }
+                        
+                        
+                        
                     } else if (Models.data_type.toLowerCase().startsWith("numeric(")
                             || Models.data_type.toLowerCase().startsWith("decimal(")) {
                         // データ型文字列から精度とスケールを抽出する
@@ -1569,11 +1650,14 @@ public class ScenarioMaker {
                             // return new java.math.BigDecimal(Long.MAX_VALUE).add(java.math.BigDecimal.ONE).toString(); // 9223372036854775808
                             // postgresqlやjavaの精度より、tsx側の精度が低いので、低い方へ併せる
                             return "9007199254740991";
-
                         case "real":
-                            return String.format("%e", (Float.MAX_VALUE + 1)); // 3.4028235E38 + 1
-                        case "double precision":
-                            return String.format("%e", (Double.MAX_VALUE + 1)); // 1.7976931348623157E308 + 1
+//                          return String.format("%e", (Float.MAX_VALUE + 1)); // 3.4028235E38 + 1 //自動テストの最大値チェックでReact側の桁を溢れてしまうので、React側は文字列として扱っている。その影響で指数表記もうまく扱えないので、プレーン表記での作成にしている。
+                            BigDecimal value = new BigDecimal(String.valueOf(Float.MAX_VALUE)).add(BigDecimal.ONE);//340282300000000000000000000000000000001
+                            return value.toPlainString();                        
+                        case "double precision":                                
+//                            return String.format("%e", (Double.MAX_VALUE + 1)); // 1.7976931348623157E308 + 1
+                            BigDecimal result = new BigDecimal(String.valueOf(Double.MAX_VALUE)).add(BigDecimal.ONE);//179769300000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000001
+                            return result.toPlainString();                            
                         default:
                             return "unsupported data type"; // サポートされていないデータ型の場合
                         }
@@ -1581,7 +1665,23 @@ public class ScenarioMaker {
                 } else if (LengthPattern == ScenarioMaker.LengthPattern.MIN) {
                     if (Models.special_control_min != 0) {
                         // 特殊制御（最小数値
-                        return String.valueOf(Models.special_control_min - 1);// -1
+                        
+                        //最大値、最小値の小数点以下が指定されている場合、特に気にせず返す
+                        if (Models.special_control_min % 1 != 0) {
+                            return String.valueOf(Models.special_control_min - 1);// -1
+                        }
+
+                        //最大値、最小値の小数点以下が無い場合、ブラウザでは小数点が省略されてしまう
+                        //例) 最大値、又は最小値が2.0や2の場合、ブラウザでは、1.0と入れても1になる
+                        BigDecimal stripped = BigDecimal.valueOf(Models.special_control_min -1 ).stripTrailingZeros();
+                        if (stripped.scale() <= 0) {
+                            // 小数点以下がない場合、小数点以下を切り捨てて返す
+                            return stripped.toPlainString();
+                        } else {
+                            // 小数点以下に値がある場合、そのまま返す
+                            return stripped.toPlainString();
+                        }
+                        
                     } else if (Models.data_type.toLowerCase().startsWith("numeric(")
                             || Models.data_type.toLowerCase().startsWith("decimal(")) {
                         int precision = Integer.parseInt(Models.data_type.substring(Models.data_type.indexOf('(') + 1,
@@ -1622,11 +1722,14 @@ public class ScenarioMaker {
                             // postgresqlやjavaの精度より、tsx側の精度が低いので、低い方へ併せる
                             return "-9007199254740991";
                         case "real":
-                            return String.format("%e", (-Float.MAX_VALUE - 1)); // 3.4028235E38 - 1
-                                                                               // (最小の正の非ゼロ値から1を引くため、浮動小数点の特性上結果は-1.0になります)
+                            //return String.format("%e", (-Float.MAX_VALUE - 1)); // 3.4028235E38 - 1
+                            BigDecimal value_real = new BigDecimal(String.valueOf(-Float.MAX_VALUE)).subtract(BigDecimal.ONE);//-340282300000000000000000000000000000001
+                            return value_real.toPlainString();
                         case "double precision":
-                            return String.format("%e", (-Double.MAX_VALUE - 1)); // 1.7976931348623157E308 - 1
-                                                                                // (同様に、浮動小数点の特性上結果は-1.0になります)
+                            //return String.format("%e", (-Double.MAX_VALUE - 1)); // 1.7976931348623157E308 - 1
+                            BigDecimal value_double = new BigDecimal(String.valueOf(-Double.MAX_VALUE)).subtract(BigDecimal.ONE);//-179769300000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000001
+                            return value_double.toPlainString();
+                                                                               
                         default:
                             return "unsupported data type"; // サポートされていないデータ型の場合
                         }
@@ -1681,7 +1784,16 @@ public class ScenarioMaker {
 
                     // "正規表現" 部分を削除して正規表現パターンを抽出
                     String regex = validationCheck.replace("【正規表現】", "").trim();
-                    regex = regex.replace("^", "").replace("$", ""); // ^と$を取り除く
+                    // 先頭の ^ を削除
+                    if (regex.startsWith("^")) {
+                        regex = regex.substring(1); // 先頭1文字を除く
+                    }
+
+                    // 末尾の $ を削除
+                    if (regex.endsWith("$")) {
+                        regex = regex.substring(0, regex.length() - 1); // 最後の1文字を除く
+                    }
+                    
 
                     int minLength = (Models.MinLength == 0) ? 10 : Models.MinLength;
                     int maxLength = (Models.MaxLength == 0) ? 20 : Models.MaxLength;
@@ -1797,7 +1909,7 @@ public class ScenarioMaker {
                 try {
                     PoiUtil.insertRow(sheet, targetRowIndex);
                 } catch (Exception e) {
-                    throw new IllegalArgumentException("point3:" + targetValue);
+                    throw new IllegalArgumentException("point3:" + targetValue,e);
                 }
                 // 新しい行の書式をコピーする
                 if (targetRowIndex > 0) {
